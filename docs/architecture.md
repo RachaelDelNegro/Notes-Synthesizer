@@ -40,11 +40,11 @@ The backend is designed to separate **probabilistic extraction** from **determin
 ### Architecture Flow Summary
 User → React UI → Express API → Synthesis Pipeline → Structured JSON → React UI
 
-## 8. Definitions
+## Definitions
 
-### 8.1 Backend API
+### Backend API
 
-#### 8.1.1 Endpoint List (MVP)
+#### Endpoint List (MVP)
 
 | Method | Endpoint              | Description                                   |
 |------|-----------------------|-----------------------------------------------|
@@ -56,8 +56,9 @@ User → React UI → Express API → Synthesis Pipeline → Structured JSON →
 
 #### 8.1.2 `POST /api/synthesize` Contract
 
-##### Request
+
 ```json
+##### Request
 {
   "text": "string",
   "sourceType": "pasted | uploaded | example",
@@ -107,4 +108,42 @@ User → React UI → Express API → Synthesis Pipeline → Structured JSON →
     }
   }
 }
+```
+## System Observer
+
+### MVP Observability Signals
+The System Observer captures:
+- `runId`
+- Stage start/end times
+- Prompt version and model name
+- Counts
+  - Action Items
+  - Decisions
+  - Questions
+- Parse and validation errors (sanitized)
+- Export events
+
+### Log Store (MVP)
+For the MVP:
+- Console logging
+- Optional local artifact: `runs/<runId>.json`
+- No external logging system required
+
+## Error Handling
+
+### Input errors (Frontend)
+- Empty input → Disable synthesize button + inline error
+- Invalid file type → "Please upload a .txt file"
+
+### Backend errors
+- LLM failure or timeout → 502/500 with user-friendly message
+- Invalid JSON from model → Retry once, else return 500
+- Validation failures → Drop invalid items and include warnings in metadata
+
+### UX Handling
+- Loading screen displays: “This may take ~X seconds”
+- Results page shows:
+
+“Some items could not be extracted reliably”
+when warnings are present
 
