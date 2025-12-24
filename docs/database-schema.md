@@ -12,7 +12,7 @@ CREATE TABLE synthesis_runs (
     created_at TEXT NOT NULL,     -- ISO timestamp
     prompt_version TEXT NOT NULL, -- Version of prompt used
     model TEXT NOT NULL,         -- Model used for synthesis
-    metadata JSON                -- Additional run metadata (timings etc)
+    metadata_JSON TEXT NOT NULL DEFAULT '{}'   -- Additional run metadata (timings etc)
 );
 ```
 
