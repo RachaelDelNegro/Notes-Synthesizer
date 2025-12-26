@@ -86,7 +86,8 @@ Each synthesis is treated as a run with metadata, and extracted outputs are norm
     "prompt_version": "string",
     "duration_ms": 0,
     "source_type": "pasted | uploaded | example",
-    "source_length": 0
+    "source_length": 0,
+    "warnings": "string"
   }
 }
 ```
@@ -126,5 +127,6 @@ For the MVP:
 - Results page shows:
 
 “Some items could not be extracted reliably”
-when warnings are present
-
+when warnings are present 
+ 
+Warnings are returned in `metadata.warnings` and displayed as a non-blocking banner.

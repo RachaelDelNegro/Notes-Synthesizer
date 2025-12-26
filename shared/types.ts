@@ -27,6 +27,8 @@ export type SynthesisMetadata = {
   duration_ms?: number;
   source_type: "pasted" | "uploaded" | "example";
   source_length?: number;
+  // non-fatal issues during synthesis
+  warnings?: string[];
 };
 
 export type SynthesizeRequest = {
