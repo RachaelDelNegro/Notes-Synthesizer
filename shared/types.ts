@@ -1,8 +1,10 @@
 // API Contract
 
+// explicit enums
 export type ItemType = "action" | "decision" | "question";
 export type Priority = "low" | "medium" | "high";
 
+// matches DB table
 export type SynthItem = {
   item_id: string;
   type: ItemType;
@@ -16,6 +18,7 @@ export type SynthItem = {
   priority?: Priority | null;
 };
 
+// run-level context - maps 1-to-1 with synthesis_runs DB table
 export type SynthesisMetadata = {
   run_id: string;
   created_at: string; // ISO timestamp

@@ -55,57 +55,38 @@ User → React UI → Express API → Synthesis Pipeline → Structured JSON →
 ---
 
 #### 8.1.2 `POST /api/synthesize` Contract
-
+Each synthesis is treated as a run with metadata, and extracted outputs are normalized into typed items.
 
 ```json
 ##### Request
 {
   "text": "string",
-  "sourceType": "pasted | uploaded | example",
-  "options": {
-    "includeConfidence": true,
-    "includeSourceText": true
-  }
+  "sourceType": "pasted | uploaded | example"
 }
 
 ##### Response
 {
-  "runId": "string",
-  "summary": ["string"],
-  "actionItems": [
+  "summary": "string",
+  "items": [
     {
-      "id": "string",
+      "item_id": "string",
+      "type": "action | decision | question",
       "description": "string",
-      "owner": "string",
-      "dueDate": "string|null",
-      "priority": "low|medium|high",
-      "sourceText": "string",
-      "confidence": 0.0
-    }
-  ],
-  "decisions": [
-    {
-      "description": "string",
-      "sourceText": "string",
-      "confidence": 0.0
-    }
-  ],
-  "questions": [
-    {
-      "description": "string",
-      "sourceText": "string",
-      "confidence": 0.0
+      "source_text": "string | null",
+      "confidence": 0.0,
+      "owner": "string | null",
+      "due_date": "ISO string | null",
+      "priority": "low | medium | high | null"
     }
   ],
   "metadata": {
-    "createdAt": "ISO string",
-    "promptVersion": "string",
+    "run_id": "string",
+    "created_at": "ISO string",
     "model": "string",
-    "stageTimingsMs": {
-      "preprocess": 0,
-      "extract": 0,
-      "validate": 0
-    }
+    "prompt_version": "string",
+    "duration_ms": 0,
+    "source_type": "pasted | uploaded | example",
+    "source_length": 0
   }
 }
 ```
