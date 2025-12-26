@@ -130,3 +130,4 @@ For the MVP:
 when warnings are present 
  
 Warnings are returned in `metadata.warnings` and displayed as a non-blocking banner.
+Show a banner when `warnings.length > 0`
