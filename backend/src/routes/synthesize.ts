@@ -19,7 +19,7 @@ function mockSynthesis(sourceText: string, sourceType: SynthesizeResponse["metad
   const run_id = makeId("run");
   const created_at = new Date().toISOString();
 
-  // Very dumb mock extraction (placeholder for your real pipeline)
+  
   const items: SynthItem[] = [
     {
       item_id: makeId("item"),
