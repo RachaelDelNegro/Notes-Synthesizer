@@ -3,9 +3,9 @@ import type { SynthesizeResponse, SynthItem } from "../../shared/types.js";
 
 const insertRun = db.prepare(`
   INSERT INTO synthesis_runs (
-    run_id, source_text, source_type, created_at, prompt_version, model, metadata_json
+    run_id, source_text, source_type, created_at, prompt_version, model, summary, metadata_json
   ) VALUES (
-    @run_id, @source_text, @source_type, @created_at, @prompt_version, @model, @metadata_json
+    @run_id, @source_text, @source_type, @created_at, @prompt_version, @model, @summary, @metadata_json
   )
 `);
 
@@ -35,6 +35,7 @@ export function persistSynthesis(args: {
       created_at: result.metadata.created_at,
       prompt_version: result.metadata.prompt_version,
       model: result.metadata.model,
+      summary: result.summary,
       metadata_json,
     });
 

@@ -4,6 +4,8 @@ import dotenv from "dotenv";
 
 import { healthRouter } from "./routes/health.js";
 import { synthesizeRouter } from "./routes/synthesize.js";
+import { runsRouter } from "./routes/runs.js";
+
 
 dotenv.config();
 
@@ -14,6 +16,8 @@ app.use(express.json({ limit: "1mb" }));
 
 app.use("/api/health", healthRouter);
 app.use("/api/synthesize", synthesizeRouter);
+app.use("/api/runs", runsRouter);
+
 
 app.use((req, res) => {
   res.status(404).json({ error: "Not found" });

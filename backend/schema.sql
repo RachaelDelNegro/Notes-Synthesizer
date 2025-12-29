@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS synthesis_runs (
   created_at TEXT NOT NULL,                -- ISO timestamp
   prompt_version TEXT NOT NULL,            -- Version of prompt used
   model TEXT NOT NULL,                     -- Model used for synthesis
+  summary TEXT,                            -- Text display
   metadata_json TEXT NOT NULL DEFAULT '{}'  -- JSON string
 );
 
