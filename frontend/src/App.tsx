@@ -188,7 +188,7 @@ export default function App() {
     console.log("ABOUT TO FETCH"); // debug statment
 
     try {
-      const resp = await fetch("http://localhost:3001/api/synthesize", {
+      const resp = await fetch("/api/synthesize", { // General fetch
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source_text: notes, source_type: "pasted" }),
