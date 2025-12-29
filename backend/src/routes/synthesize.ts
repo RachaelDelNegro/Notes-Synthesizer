@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import crypto from "crypto";
+import { persistSynthesis } from "../persist.js";
 import type { SynthesizeRequest, SynthesizeResponse, SynthItem } from "../../../shared/types.js";
 
 export const synthesizeRouter = Router();
@@ -87,5 +88,17 @@ synthesizeRouter.post("/", (req, res) => {
   const sourceType = body.source_type ?? "pasted";
 
   const result = mockSynthesis(body.source_text, sourceType);
+
+  try {
+    persistSynthesis({
+      source_text: body.source_text,
+      source_type: sourceType,
+      result,
+    });
+  } catch (e) {
+    // Don't break the endpoint if persistence fails; log and keep returning synthesis
+    console.error("Failed to persist synthesis:", e);
+  }
+  
   res.json(result);
 });
