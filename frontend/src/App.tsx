@@ -194,7 +194,7 @@ export default function App() {
             <Button variant="secondary" onClick={reset} disabled={isLoading}>
               Reset
             </Button>
-            <Button onClick={onSynthesize} disabled={isLoading}>
+            <Button variant="destructive" onClick={onSynthesize} disabled={isLoading}>
               {isLoading ? "Synthesizing…" : "Synthesize"}
             </Button>
           </div>
