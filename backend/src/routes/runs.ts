@@ -1,8 +1,16 @@
 import { Router } from "express";
 import { db } from "../db.js";
 import type { SynthesizeResponse, SynthItem } from "../../../shared/types.js";
+import type { RunsListResponse, RunsListItem, RunDetailResponse } from "../../../shared/api.js";
+
+import { z } from "zod";
+
+const limitSchema = z.coerce.number().int().min(1).max(100).default(20);
+const runIdSchema = z.string().min(1).max(200);
 
 export const runsRouter = Router();
+
+type RunListRow = RunsListItem;
 
 type RunRow = {
   run_id: string;
@@ -15,53 +23,48 @@ type RunRow = {
   source_text: string;
 };
 
-// GET /api/runs?limit=20
+type ItemRow = SynthItem;
+
+const listRunsStmt = db.prepare<[number], RunListRow>(`
+  SELECT run_id, created_at, source_type, model, prompt_version,
+         LENGTH(source_text) AS source_length
+  FROM synthesis_runs
+  ORDER BY created_at DESC
+  LIMIT ?
+`);
+
+const getRunStmt = db.prepare<[string], RunRow>(`
+  SELECT run_id, created_at, source_type, model, prompt_version, summary, metadata_json, source_text
+  FROM synthesis_runs
+  WHERE run_id = ?
+`);
+
+const getItemsStmt = db.prepare<[string], ItemRow>(`
+  SELECT item_id, type, description, owner, due_date, priority, source_text, confidence
+  FROM items
+  WHERE run_id = ?
+`);
+
+// GET /api/runs
 runsRouter.get("/", (req, res) => {
-  const limit = Math.min(Number(req.query.limit ?? 20), 100);
+  const limit = limitSchema.parse(req.query.limit);
 
-  const rows = db
-    .prepare(
-      `
-      SELECT run_id, created_at, source_type, model, prompt_version, LENGTH(source_text) AS source_length
-      FROM synthesis_runs
-      ORDER BY created_at DESC
-      LIMIT ?
-    `
-    )
-    .all(limit);
-
-  res.json({ runs: rows });
+  const rows = listRunsStmt.all(limit);
+  const payload: RunsListResponse = { runs: rows };
+  res.json(payload);
 });
 
 // GET /api/runs/:runId
 runsRouter.get("/:runId", (req, res) => {
-  const runId = req.params.runId;
+  const runId = runIdSchema.parse(req.params.runId);
 
-  const run = db
-    .prepare(
-      `
-      SELECT run_id, created_at, source_type, model, prompt_version, summary, metadata_json, source_text
-      FROM synthesis_runs
-      WHERE run_id = ?
-    `
-    )
-    .get(runId) as RunRow | undefined;
-
+   const run = getRunStmt.get(runId);
   if (!run) return res.status(404).json({ error: "Run not found" });
 
-  const items = db
-    .prepare(
-      `
-      SELECT item_id, type, description, owner, due_date, priority, source_text, confidence
-      FROM items
-      WHERE run_id = ?
-    `
-    )
-    .all(runId) as SynthItem[];
+  const items = getItemsStmt.all(runId);
 
   const metadata = JSON.parse(run.metadata_json) as SynthesizeResponse["metadata"];
 
-  // Ensure metadata matches the run row (in case you ever change metadata_json format)
   const result: SynthesizeResponse = {
     summary: run.summary ?? "",
     items,
@@ -75,5 +78,6 @@ runsRouter.get("/:runId", (req, res) => {
     },
   };
 
-  res.json({ result, source_text: run.source_text });
+  const payload: RunDetailResponse = { result, source_text: run.source_text };
+  res.json(payload);
 });

@@ -2,6 +2,8 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import type { SynthesizeResponse, SynthItem } from "@shared/types";
+import type { RunDetailResponse, RunsListResponse } from "@shared/api";
+
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -660,34 +662,34 @@ function HistoryDialog({
   const [loading, setLoading] = React.useState(false);
 
   React.useEffect(() => {
-    if (!open) return;
-    (async () => {
-      setLoading(true);
-      try {
-        const resp = await fetch("/api/runs?limit=25");
-        const data = await resp.json();
-        setRuns(data.runs ?? []);
-      } catch (e) {
-        console.error(e);
-        toast.error("Failed to load run history.");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [open]);
-
-  async function loadRun(run_id: string) {
+  if (!open) return;
+  (async () => {
+    setLoading(true);
     try {
-      const resp = await fetch(`/api/runs/${encodeURIComponent(run_id)}`);
-      if (!resp.ok) throw new Error("Failed");
-      const payload = (await resp.json()) as { result: SynthesizeResponse; source_text: string };
-      onLoad(payload);
-      setOpen(false);
+      const resp = await fetch("/api/runs?limit=25");
+      const data = (await resp.json()) as RunsListResponse;   // <-- change
+      setRuns(data.runs ?? []);
     } catch (e) {
       console.error(e);
-      toast.error("Failed to load run.");
+      toast.error("Failed to load run history.");
+    } finally {
+      setLoading(false);
     }
+  })();
+}, [open]);
+
+async function loadRun(run_id: string) {
+  try {
+    const resp = await fetch(`/api/runs/${encodeURIComponent(run_id)}`);
+    if (!resp.ok) throw new Error("Failed");
+    const payload = (await resp.json()) as RunDetailResponse; // <-- change
+    onLoad(payload);
+    setOpen(false);
+  } catch (e) {
+    console.error(e);
+    toast.error("Failed to load run.");
   }
+}
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
