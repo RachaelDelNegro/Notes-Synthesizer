@@ -233,9 +233,20 @@ export default function App() {
             </p>
           </div>
           <div className="flex gap-2">
+            <HistoryDialog
+              onLoad={(payload) => {
+                setNotes(payload.source_text);
+                const vm = mapApiToVm(payload.result);
+                setResult(vm);
+                setActiveTab("summary");
+                toast("Loaded from history.");
+              }}
+            />
+
             <Button variant="secondary" onClick={reset} disabled={isLoading}>
               Reset
             </Button>
+
             <Button variant="destructive" onClick={onSynthesize} disabled={isLoading}>
               {isLoading ? "Synthesizing…" : "Synthesize"}
             </Button>
@@ -300,7 +311,7 @@ export default function App() {
               {result && (
                 <div className="space-y-4">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="secondary">Mock run</Badge>
+                    <Badge variant="secondary">Saved</Badge>
                     <Badge variant="outline">V0 vertical slice</Badge>
                     <div className="ml-auto">
                       <ExportDialog result={result} />
@@ -634,5 +645,95 @@ function QuestionsPanel({
         ))}
       </div>
     </div>
+  );
+}
+
+function HistoryDialog({
+  onLoad,
+}: {
+  onLoad: (payload: { result: SynthesizeResponse; source_text: string }) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [runs, setRuns] = React.useState<
+    Array<{ run_id: string; created_at: string; source_type: string; model: string; prompt_version: string; source_length: number }>
+  >([]);
+  const [loading, setLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!open) return;
+    (async () => {
+      setLoading(true);
+      try {
+        const resp = await fetch("/api/runs?limit=25");
+        const data = await resp.json();
+        setRuns(data.runs ?? []);
+      } catch (e) {
+        console.error(e);
+        toast.error("Failed to load run history.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [open]);
+
+  async function loadRun(run_id: string) {
+    try {
+      const resp = await fetch(`/api/runs/${encodeURIComponent(run_id)}`);
+      if (!resp.ok) throw new Error("Failed");
+      const payload = (await resp.json()) as { result: SynthesizeResponse; source_text: string };
+      onLoad(payload);
+      setOpen(false);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to load run.");
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline">History</Button>
+      </DialogTrigger>
+
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Run history</DialogTitle>
+          <DialogDescription>Load a previous synthesis run from SQLite.</DialogDescription>
+        </DialogHeader>
+
+        <div className="rounded-lg border">
+          <ScrollArea className="h-[360px]">
+            <div className="p-3 space-y-2">
+              {loading && <div className="text-sm text-muted-foreground">Loading…</div>}
+              {!loading && runs.length === 0 && (
+                <div className="text-sm text-muted-foreground">No runs yet. Click Synthesize to create one.</div>
+              )}
+
+              {runs.map((r) => (
+                <div key={r.run_id} className="flex items-center gap-3 rounded-lg border p-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">{r.run_id}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(r.created_at).toLocaleString()} • {r.source_type} • {r.model} • {r.source_length} chars
+                    </div>
+                  </div>
+                  <div className="ml-auto">
+                    <Button size="sm" onClick={() => loadRun(r.run_id)}>
+                      Load
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
+
+        <DialogFooter>
+          <Button variant="secondary" onClick={() => setOpen(false)}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
