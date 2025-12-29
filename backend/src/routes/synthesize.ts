@@ -95,10 +95,11 @@ synthesizeRouter.post("/", (req, res) => {
       source_type: sourceType,
       result,
     });
+    console.log("[db] persisted run", result.metadata.run_id); // debugging statement
   } catch (e) {
     // Don't break the endpoint if persistence fails; log and keep returning synthesis
     console.error("Failed to persist synthesis:", e);
   }
-  
+
   res.json(result);
 });

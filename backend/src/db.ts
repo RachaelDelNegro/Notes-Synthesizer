@@ -9,3 +9,6 @@ export const db = new Database(dbPath);
 
 db.pragma("foreign_keys = ON");
 db.pragma("journal_mode = WAL");
+
+console.log("[db] sqlite:", dbPath); // debugging statement
+
