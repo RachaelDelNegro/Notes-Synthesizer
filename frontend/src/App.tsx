@@ -134,6 +134,35 @@ function downloadText(filename: string, content: string, mime = "text/plain;char
   a.click();
   URL.revokeObjectURL(url);
 }
+// -------------------- Mapper --------------------
+function mapApiToVm(api: SynthesizeResponse): SynthesisVM {
+  const actionItems: ActionItemVM[] = api.items
+    .filter((it) => it.type === "action")
+    .map((it) => ({
+      id: it.item_id,
+      text: it.description,
+      owner: it.owner ?? "",
+      due: it.due_date ?? "",
+      priority: (it.priority ?? "low") as Priority,
+      done: false,
+    }));
+
+  const decisions = api.items
+    .filter((it) => it.type === "decision")
+    .map((it) => ({ id: it.item_id, text: it.description }));
+
+  const questions = api.items
+    .filter((it) => it.type === "question")
+    .map((it) => ({ id: it.item_id, text: it.description, status: "open" as const }));
+
+  return {
+    summary: api.summary,
+    actionItems,
+    decisions,
+    questions,
+  };
+}
+
 
 // -------------------- App --------------------
 export default function App() {
@@ -156,18 +185,31 @@ export default function App() {
     setIsLoading(true);
     setResult(null);
 
+    console.log("ABOUT TO FETCH"); // debug statment
+
     try {
-      const res = await mockSynthesize(notes);
+      const resp = await fetch("http://localhost:3001/api/synthesize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source_text: notes, source_type: "pasted" }),
+      });
 
-      // Example: if you want to prove the shared types compile without using them yet:
-      // const _typecheckOnly: SynthesizeResponse | null = null;
-      // const _item: SynthItem | null = null;
+      console.log("FETCH RETURNED. ok=", resp.ok, "status=", resp.status);
 
-      setResult(res);
+      const text = await resp.text();
+      console.log("RESPONSE TEXT:", text);
+
+      if (!resp.ok) throw new Error(text);
+
+      const apiResult = JSON.parse(text) as SynthesizeResponse;
+      const vm = mapApiToVm(apiResult);
+
+      setResult(vm);
       setActiveTab("summary");
-      toast("Synthesis ready.");
-    } catch {
-      toast.error("Something went wrong.");
+      toast("Synthesis ready (saved to DB).");
+    } catch (e) {
+      console.error("FETCH ERROR:", e);
+      toast.error("Fetch failed — see console.");
     } finally {
       setIsLoading(false);
     }
