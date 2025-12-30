@@ -101,7 +101,9 @@ synthesizeRouter.post("/", async (req, res) => {
   const created_at = new Date().toISOString();
 
   const warnings: string[] = [];
-  if (body.source_text.trim().length < 50) {
+  const wordCount = body.source_text.trim().split(/\s+/).length;
+
+  if (wordCount < 20) {
     warnings.push("Input is very short; extracted items may be incomplete.");
   }
   if (body.source_text.length > MAX_CHARS * 0.95) {

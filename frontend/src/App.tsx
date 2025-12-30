@@ -50,6 +50,8 @@ type SynthesisVM = {
   actionItems: ActionItemVM[];
   decisions: { id: string; text: string }[];
   questions: { id: string; text: string; status: "open" | "answered" }[];
+  warnings: string[];
+  runId?: string;
 };
 
 // -------------------- Mock synthesis (replace with fetch later) --------------------
@@ -99,6 +101,8 @@ async function mockSynthesize(notes: string): Promise<SynthesisVM> {
       { id: crypto.randomUUID(), text: "What’s the minimum structure needed for MVP outputs?", status: "open" },
       { id: crypto.randomUUID(), text: "Do we store runs (history) or keep it stateless at first?", status: "open" },
     ],
+    warnings: [],
+    runId: undefined,
   };
 }
 
@@ -162,15 +166,57 @@ function mapApiToVm(api: SynthesizeResponse): SynthesisVM {
     actionItems,
     decisions,
     questions,
+    warnings: api.metadata?.warnings ?? [],
+    runId: api.metadata?.run_id,
   };
 }
+
+// -------------------- Examples --------------------
+
+
+const EXAMPLES: Array<{ id: string; label: string; text: string }> = [
+    {
+      id: "weekly-sync",
+      label: "Weekly sync (clean)",
+      text: `Weekly Project Sync – Jan 8
+
+  Discussed progress on the Notes Synthesizer MVP.
+  Rachael will finish integrating Gemini and deploy to staging by Friday.
+  Jude will review the backend schema and suggest improvements.
+  We agreed to use a shared response schema between frontend and backend.
+  Open question: do we want to support streaming output in the first release or push it to v2?
+  Next meeting scheduled for Jan 5.`,
+    },
+    {
+      id: "messy-notes",
+      label: "Messy shorthand",
+      text: `Project check-in
+
+  Gemini hooked up now 🎉
+  Need to double check JSON validity stuff
+  Jude: take a look at DB + memory idea
+  Rachael – docs + maybe streaming later?
+  Decision was we keep frontend simple for now
+  ?? exporting markdown vs json – who cares first`,
+    },
+    {
+      id: "follow-up-memory",
+      label: "Follow-up (memory test)",
+      text: `Follow-up from last week
+
+  Mostly focused on backend stuff again.
+  Still planning to keep the shared schema.
+  Rachael wants to add streaming but not block launch.
+  Anything left from Jude’s DB review?`,
+    },
+];
 
 
 // -------------------- App --------------------
 export default function App() {
-  const [notes, setNotes] = React.useState<string>(
-    "Met with mentor. Discussed MVP: paste/upload notes, synthesize structured outputs, edit, export.\nDecision: use shadcn/ui.\nAction: wire /api/synthesize.\nQuestion: store runs in DB or stateless?"
-  );
+  const [notes, setNotes] = React.useState<string>("");
+
+  const [selectedExampleId, setSelectedExampleId] = React.useState<string>(EXAMPLES[0].id);
 
   const [isLoading, setIsLoading] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<"summary" | "actions" | "decisions" | "questions">("summary");
@@ -234,34 +280,24 @@ export default function App() {
               Paste meeting notes, synthesize structured outputs, then edit and export.
             </p>
           </div>
-          <div className="flex gap-2">
-            <HistoryDialog
-              onLoad={(payload) => {
-                setNotes(payload.source_text);
-                const vm = mapApiToVm(payload.result);
-                setResult(vm);
-                setActiveTab("summary");
-                toast("Loaded from history.");
-              }}
-            />
-
-            <Button variant="secondary" onClick={reset} disabled={isLoading}>
-              Reset
-            </Button>
-
-            <Button variant="destructive" onClick={onSynthesize} disabled={isLoading}>
-              {isLoading ? "Synthesizing…" : "Synthesize"}
-            </Button>
-          </div>
         </div>
 
         {/* Two-column layout */}
         <div className="grid gap-6 md:grid-cols-2">
           {/* Input */}
-          <Card className="rounded-2xl">
-            <CardHeader>
+          <Card className="rounded-2xl relative">
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={onSynthesize}
+              disabled={isLoading}
+              className="absolute top-4 right-4"
+            >
+              {isLoading ? "Synthesizing…" : "Synthesize"}
+            </Button>
+            <CardHeader className="pr-32">
               <CardTitle>Input</CardTitle>
-              <CardDescription>Paste your transcript or rough notes. Upload can come next.</CardDescription>
+              <CardDescription>Paste your transcript or rough notes.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -270,28 +306,76 @@ export default function App() {
                   id="notes"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Paste notes here…"
+                  placeholder={`Paste meeting notes or transcript here…
+                  `}
                   className="min-h-[280px] resize-none"
                   disabled={isLoading}
                 />
               </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  {/* Left side: example + load */}
+                  <div className="flex flex-wrap gap-2">
+                    <select
+                      className="h-10 rounded-md border bg-background px-3 text-sm"
+                      value={selectedExampleId}
+                      onChange={(e) => setSelectedExampleId(e.target.value)}
+                      disabled={isLoading}
+                      aria-label="Select example notes"
+                    >
+                      {EXAMPLES.map((ex) => (
+                        <option key={ex.id} value={ex.id}>
+                          {ex.label}
+                        </option>
+                      ))}
+                    </select>
 
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs text-muted-foreground">
-                  Tip: explicit “Action/Decision/Question” lines improve structure.
-                </p>
-                <Button variant="outline" onClick={() => setNotes("")} disabled={isLoading}>
-                  Clear
-                </Button>
-              </div>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        const ex = EXAMPLES.find((x) => x.id === selectedExampleId);
+                        if (ex) {
+                          setNotes(ex.text);
+                          setResult(null);
+                          setActiveTab("summary");
+                          toast(`Loaded example: ${ex.label}`);
+                        }
+                      }}
+                      disabled={isLoading}
+                    >
+                      Load example
+                    </Button>
+                  </div>
+
+                  {/* Right side: clear */}
+                  <div className="flex justify-end">
+                    <Button variant="outline" onClick={() => setNotes("")} disabled={isLoading}>
+                      Clear
+                    </Button>
+                  </div>
+                </div>
             </CardContent>
           </Card>
 
           {/* Output */}
-          <Card className="rounded-2xl">
-            <CardHeader>
+          <Card className="rounded-2xl relative">
+            <div className="absolute top-4 right-4 flex items-center gap-2">
+              <HistoryDialog
+                onLoad={(payload) => {
+                  setNotes(payload.source_text);
+                  const vm = mapApiToVm(payload.result);
+                  setResult(vm);
+                  setActiveTab("summary");
+                  toast("Loaded from history.");
+                }}
+              />
+
+              <Button size="sm" variant="secondary" onClick={reset} disabled={isLoading}>
+                Reset
+              </Button>
+            </div>
+            <CardHeader className="pr-40">
               <CardTitle>Output</CardTitle>
-              <CardDescription>Vertical slice output (mock synthesis for now).</CardDescription>
+              <CardDescription>Structured output via Gemini (LLM).</CardDescription>
             </CardHeader>
             <CardContent>
               {!result && !isLoading && (
@@ -314,11 +398,22 @@ export default function App() {
                 <div className="space-y-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="secondary">Saved</Badge>
-                    <Badge variant="outline">V0 vertical slice</Badge>
+                    <Badge variant="outline">V1</Badge>
                     <div className="ml-auto">
                       <ExportDialog result={result} />
                     </div>
                   </div>
+
+                  {result.warnings?.length > 0 && (
+                  <div className="rounded-xl border p-3 text-sm">
+                    <div className="font-medium mb-1">Warnings</div>
+                    <ul className="list-disc pl-5 text-muted-foreground space-y-1">
+                      {result.warnings.map((w, idx) => (
+                        <li key={idx}>{w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                   <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
                     <TabsList className="grid w-full grid-cols-4">
@@ -374,8 +469,7 @@ export default function App() {
         </div>
 
         <div className="text-xs text-muted-foreground">
-          Next: swap <code className="px-1 py-0.5 rounded bg-muted">mockSynthesize()</code> for a real{" "}
-          <code className="px-1 py-0.5 rounded bg-muted">fetch("/api/synthesize")</code>.
+          Next: add memory-aware synthesis, streaming output, and stricter JSON validation.
         </div>
       </div>
     </div>
