@@ -27,3 +27,6 @@ const port = Number(process.env.PORT ?? 3001);
 app.listen(port, () => {
   console.log(`[backend] listening on http://localhost:${port}`);
 });
+
+console.log("GEMINI_MODEL=", process.env.GEMINI_MODEL);
+console.log("GEMINI_API_KEY present=", Boolean(process.env.GEMINI_API_KEY));
