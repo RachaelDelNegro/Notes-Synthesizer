@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { persistSynthesis } from "../persist.js";
 import type { SynthesizeRequest, SynthesizeResponse, SynthItem } from "../../../shared/types.js";
 import { makeLlmClient } from "../llm/index.js";
+import { getMemoryBlock } from "../memory/getMemoryBlock.js";
 
 
 export const synthesizeRouter = Router();
@@ -83,6 +84,9 @@ function mockSynthesis(sourceText: string, sourceType: SynthesizeResponse["metad
   };
 }
 
+
+
+
 synthesizeRouter.post("/", async (req, res) => {
   const parsed = reqSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -105,7 +109,12 @@ synthesizeRouter.post("/", async (req, res) => {
   }
 
   try {
-    const out = await llm.synthesize({ source_text: body.source_text });
+    const memory = getMemoryBlock({
+      limit: 3,
+      maxChars: 2000,
+      sourceType,
+});
+    const out = await llm.synthesize({ source_text: body.source_text, memory });
 
     const items: SynthItem[] = (out.items ?? []).map((it) => ({
       item_id: makeId("item"),

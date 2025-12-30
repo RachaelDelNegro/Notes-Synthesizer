@@ -1,7 +1,20 @@
 import { GoogleGenAI } from "@google/genai";
 import type { LlmClient, LlmSynthesizeInput, LlmSynthesizeOutput } from "./types.js";
 
-function prompt(sourceText: string) {
+function prompt(input: LlmSynthesizeInput) { 
+  const memoryBlock =
+    input.memory && input.memory.trim().length > 0
+      ? `
+MEMORY CONTEXT (from prior syntheses; use for consistency only):
+${input.memory}
+
+Rules:
+- Use memory only to keep names/projects consistent and to continue ongoing action items.
+- If memory conflicts with the new input notes, the new input notes win.
+- Do not invent facts that are not present in either memory or the new input.
+`.trim()
+      : "";
+
   return `
 You are a meeting-notes synthesizer.
 
@@ -27,16 +40,27 @@ Notes:
 - If unknown, use null
 - Use source_text snippets when possible
 
+${memoryBlock ? memoryBlock + "\n\n" : ""}
 INPUT:
-${sourceText}
+${input.source_text}
 `.trim();
 }
 
 function extractJsonObject(text: string) {
   const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) throw new Error("No JSON object found in model output");
-  return text.slice(start, end + 1);
+  if (start === -1) throw new Error("No JSON object found in model output");
+
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "{") depth++;
+    else if (ch === "}") depth--;
+
+    if (depth === 0) {
+      return text.slice(start, i + 1);
+    }
+  }
+  throw new Error("Unclosed JSON object in model output");
 }
 
 export function makeGeminiClient(): LlmClient {
@@ -51,7 +75,7 @@ export function makeGeminiClient(): LlmClient {
     async synthesize(input: LlmSynthesizeInput): Promise<LlmSynthesizeOutput> {
       const resp = await ai.models.generateContent({
         model,
-        contents: [{ role: "user", parts: [{ text: prompt(input.source_text) }] }],
+        contents: [{ role: "user", parts: [{ text: prompt(input) }] }],
       });
 
       const text = resp.text;

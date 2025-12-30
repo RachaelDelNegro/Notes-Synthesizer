@@ -2,6 +2,7 @@ export type ProviderName = "gemini" | "mock"; // ability to add others later
 
 export type LlmSynthesizeInput = {
   source_text: string;
+  memory?: string;
 };
 
 export type LlmItem = {
