@@ -1,13 +1,11 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 
 import { healthRouter } from "./routes/health.js";
 import { synthesizeRouter } from "./routes/synthesize.js";
 import { runsRouter } from "./routes/runs.js";
 
-
-dotenv.config();
 
 const app = express();
 
