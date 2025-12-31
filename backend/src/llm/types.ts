@@ -22,7 +22,17 @@ export type LlmSynthesizeOutput = {
   model: string;
 };
 
+// Streaming
+export type LlmStreamEvent =
+  | { type: "delta"; text: string } // incremental text
+  | { type: "done"; rawText: string }; // full raw model output
+
 export interface LlmClient {
   provider: ProviderName;
   synthesize(input: LlmSynthesizeInput): Promise<LlmSynthesizeOutput>;
+
+  synthesizeStream?: (
+    input: LlmSynthesizeInput,
+    onEvent: (ev: LlmStreamEvent) => void
+  ) => Promise<LlmSynthesizeOutput>;
 }

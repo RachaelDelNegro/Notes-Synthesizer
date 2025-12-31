@@ -1,5 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
-import type { LlmClient, LlmSynthesizeInput, LlmSynthesizeOutput } from "./types.js";
+import type { LlmClient, LlmSynthesizeInput, LlmSynthesizeOutput, LlmStreamEvent } from "./types.js";
+import { parseAndValidateLlmOutput } from "./parse.js";
+
 
 function prompt(input: LlmSynthesizeInput) { 
   const memoryBlock =
@@ -46,22 +48,58 @@ ${input.source_text}
 `.trim();
 }
 
-function extractJsonObject(text: string) {
-  const start = text.indexOf("{");
-  if (start === -1) throw new Error("No JSON object found in model output");
+// If prompt fails
+function repairPrompt(badOutput: string) {
+  return `
+You returned invalid JSON.
 
-  let depth = 0;
-  for (let i = start; i < text.length; i++) {
-    const ch = text[i];
-    if (ch === "{") depth++;
-    else if (ch === "}") depth--;
-
-    if (depth === 0) {
-      return text.slice(start, i + 1);
+Return ONLY valid JSON (no markdown, no extra text) in this exact shape:
+{
+  "summary": "string",
+  "items": [
+    {
+      "type": "action" | "decision" | "question",
+      "description": "string",
+      "owner": "string or null",
+      "due_date": "string or null",
+      "priority": "low" | "medium" | "high" | null,
+      "source_text": "string or null",
+      "confidence": "number between 0 and 1, or null"
     }
-  }
-  throw new Error("Unclosed JSON object in model output");
+  ]
 }
+
+Rules:
+- Use double quotes for all JSON strings
+- No trailing commas
+- If a field is unknown, use null
+- Do not add any keys not listed in the schema
+
+Fix the following output into valid JSON:
+${badOutput}
+`.trim();
+}
+
+function safeTextFromStreamChunk(chunk: any): string {
+  // @google/genai streaming chunk shapes can vary; try multiple possibilities.
+  if (!chunk) return "";
+
+  if (typeof chunk.text === "string") return chunk.text;
+
+  if (typeof chunk.text === "function") {
+    const t = chunk.text();
+    if (typeof t === "string") return t;
+  }
+
+  const parts = chunk?.candidates?.[0]?.content?.parts;
+  if (Array.isArray(parts)) {
+    return parts.map((p: any) => (typeof p?.text === "string" ? p.text : "")).join("");
+  }
+
+  return "";
+}
+
+
 
 export function makeGeminiClient(): LlmClient {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -72,6 +110,7 @@ export function makeGeminiClient(): LlmClient {
 
   return {
     provider: "gemini",
+
     async synthesize(input: LlmSynthesizeInput): Promise<LlmSynthesizeOutput> {
       const resp = await ai.models.generateContent({
         model,
@@ -81,15 +120,89 @@ export function makeGeminiClient(): LlmClient {
       const text = resp.text;
       if (!text) throw new Error("Gemini returned empty output");
 
-      const jsonText = extractJsonObject(text);
-      const parsed = JSON.parse(jsonText);
+      try {
+        const validated = parseAndValidateLlmOutput(text);
+        return {
+          summary: validated.summary,
+          items: validated.items,
+          provider: "gemini",
+          model,
+        };
+      } catch (err) {
+        const fixResp = await ai.models.generateContent({
+          model,
+          contents: [{ role: "user", parts: [{ text: repairPrompt(text) }] }],
+        });
 
-      return {
-        summary: String(parsed.summary ?? ""),
-        items: Array.isArray(parsed.items) ? parsed.items : [],
-        provider: "gemini",
+        const fixText = fixResp.text;
+        if (!fixText) throw new Error("Gemini returned empty output on repair");
+
+        const validated = parseAndValidateLlmOutput(fixText);
+
+        return {
+          summary: validated.summary,
+          items: validated.items,
+          provider: "gemini",
+          model,
+        };
+      }
+    },
+
+    // streaming version
+    async synthesizeStream(
+      input: LlmSynthesizeInput,
+      onEvent: (ev: LlmStreamEvent) => void
+    ): Promise<LlmSynthesizeOutput> {
+      // Stream raw output
+      const streamResp = await ai.models.generateContentStream({
         model,
-      };
+        contents: [{ role: "user", parts: [{ text: prompt(input) }] }],
+      });
+
+      let rawText = "";
+      let lastLen = 0;
+
+      for await (const chunk of streamResp as any) {
+        const piece = safeTextFromStreamChunk(chunk);
+        if (!piece) continue;
+
+        rawText += piece;
+
+        const delta = rawText.slice(lastLen);
+        if (delta) onEvent({ type: "delta", text: delta });
+
+        lastLen = rawText.length;
+      }
+
+      onEvent({ type: "done", rawText });
+
+      // Parse + validate
+      try {
+        const validated = parseAndValidateLlmOutput(rawText);
+        return {
+          summary: validated.summary,
+          items: validated.items,
+          provider: "gemini",
+          model,
+        };
+      } catch (err) {
+        const fixResp = await ai.models.generateContent({
+          model,
+          contents: [{ role: "user", parts: [{ text: repairPrompt(rawText) }] }],
+        });
+
+        const fixText = fixResp.text;
+        if (!fixText) throw new Error("Gemini returned empty output on repair");
+
+        const validated = parseAndValidateLlmOutput(fixText);
+
+        return {
+          summary: validated.summary,
+          items: validated.items,
+          provider: "gemini",
+          model,
+        };
+      }
     },
   };
 }
