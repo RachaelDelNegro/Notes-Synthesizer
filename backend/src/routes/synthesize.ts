@@ -11,8 +11,6 @@ export const synthesizeRouter = Router();
 
 const MAX_CHARS = 50_000;
 
-const llm = makeLlmClient();
-
 
 const reqSchema = z.object({
   source_text: z.string().min(1).max(MAX_CHARS),
@@ -110,7 +108,12 @@ synthesizeRouter.post("/", async (req, res) => {
     warnings.push(`Input is near the ${MAX_CHARS.toLocaleString()} character limit; results may miss later context.`);
   }
 
+  
+
+
   try {
+    const llm = makeLlmClient();
+
     const memory = getMemoryBlock({
       limit: 3,
       maxChars: 2000,
@@ -224,6 +227,7 @@ synthesizeRouter.post("/stream", async (req, res) => {
   });
 
   try {
+    const llm = makeLlmClient();
     const memory = getMemoryBlock({ limit: 3, maxChars: 2000, sourceType });
 
     // For now, until we wire Gemini streaming:
@@ -280,4 +284,3 @@ synthesizeRouter.post("/stream", async (req, res) => {
     }
   }
 );
-
