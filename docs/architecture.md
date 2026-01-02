@@ -191,3 +191,13 @@ Show a banner when `warnings.length > 0`
 - Probabilistic generation + deterministic validation
 - Streaming improves trust and perceived responsiveness
 - Persistence supports reflection and iteration
+
+---
+
+## Future Work
+
+- Production deployment (Render / Vercel)
+- Persistent storage using managed Postgres
+- Real-time Gemini token streaming
+- Authentication and per-user memory
+- Role-based exports (PM, engineer, exec)
