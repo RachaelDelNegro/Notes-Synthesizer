@@ -140,6 +140,40 @@ function downloadText(filename: string, content: string, mime = "text/plain;char
   a.click();
   URL.revokeObjectURL(url);
 }
+
+// Streaming helper
+type SseMessage = { event: string; data: any };
+
+function parseSseLines(buffer: string) {
+  // returns { messages, rest }
+  const messages: SseMessage[] = [];
+  const parts = buffer.split("\n\n");
+  const rest = parts.pop() ?? "";
+
+  for (const chunk of parts) {
+    const lines = chunk.split("\n");
+    let event = "message";
+    const dataLines: string[] = [];
+
+    for (const line of lines) {
+      if (line.startsWith("event:")) event = line.slice(6).trim();
+      else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+    }
+
+    const dataStr = dataLines.join("\n");
+    if (!dataStr) continue;
+
+    try {
+      messages.push({ event, data: JSON.parse(dataStr) });
+    } catch {
+      // if it isn't JSON for some reason, still pass raw
+      messages.push({ event, data: dataStr });
+    }
+  }
+
+  return { messages, rest };
+}
+
 // -------------------- Mapper --------------------
 function mapApiToVm(api: SynthesizeResponse): SynthesisVM {
   const actionItems: ActionItemVM[] = api.items
@@ -221,8 +255,12 @@ export default function App() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<"summary" | "actions" | "decisions" | "questions">("summary");
 
-  // You can later swap SynthesisVM to SynthesizeResponse after your backend is ready.
   const [result, setResult] = React.useState<SynthesisVM | null>(null);
+
+  const [streamText, setStreamText] = React.useState<string>("");
+  const [streamMeta, setStreamMeta] = React.useState<{ run_id?: string; warnings?: string[] } | null>(null);
+
+
 
   async function onSynthesize() {
     if (!notes.trim()) {
@@ -232,32 +270,69 @@ export default function App() {
 
     setIsLoading(true);
     setResult(null);
+    setStreamText("");
+    setStreamMeta(null);
 
-    console.log("ABOUT TO FETCH"); // debug statment
+    const controller = new AbortController();
 
     try {
       const resp = await fetch("/api/synthesize", { // General fetch
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source_text: notes, source_type: "pasted" }),
+        signal: controller.signal,
       });
 
-      console.log("FETCH RETURNED. ok=", resp.ok, "status=", resp.status);
-
+      if (!resp.ok) {
       const text = await resp.text();
-      console.log("RESPONSE TEXT:", text);
+      throw new Error(text || `HTTP ${resp.status}`);
+      }
 
-      if (!resp.ok) throw new Error(text);
+      if (!resp.body) throw new Error("No response body (stream unavailable)");
 
-      const apiResult = JSON.parse(text) as SynthesizeResponse;
-      const vm = mapApiToVm(apiResult);
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder("utf-8");
 
+      let buf = "";
+      let finalPayload: SynthesizeResponse | null = null;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buf += decoder.decode(value, { stream: true });
+
+        const parsed = parseSseLines(buf);
+        buf = parsed.rest;
+
+        for (const msg of parsed.messages) {
+          if (msg.event === "meta") {
+            setStreamMeta(msg.data);
+            if (Array.isArray(msg.data?.warnings) && msg.data.warnings.length) {
+              // optional: show warnings early
+            }
+          } else if (msg.event === "delta") {
+            const t = String(msg.data?.text ?? "");
+            if (t) setStreamText((prev) => prev + t);
+          } else if (msg.event === "final") {
+            finalPayload = msg.data as SynthesizeResponse;
+          } else if (msg.event === "error") {
+            throw new Error(msg.data?.message ?? "Stream error");
+          }
+        }
+      }
+
+      if (!finalPayload) {
+        throw new Error("Stream ended without a final payload.");
+      }
+
+      const vm = mapApiToVm(finalPayload);
       setResult(vm);
       setActiveTab("summary");
       toast("Synthesis ready (saved to DB).");
     } catch (e) {
-      console.error("FETCH ERROR:", e);
-      toast.error("Fetch failed — see console.");
+      console.error("STREAM FETCH ERROR:", e);
+      toast.error("Streaming failed — see console.");
     } finally {
       setIsLoading(false);
     }
@@ -385,14 +460,30 @@ export default function App() {
               )}
 
               {isLoading && (
-                <div className="space-y-3">
+                <div className="space-y-3">s
+                  {streamMeta?.warnings?.length ? (
+                    <div className="rounded-xl border p-3 text-sm">
+                      <div className="font-medium mb-1">Warnings</div>
+                      <ul className="list-disc pl-5 text-muted-foreground space-y-1">
+                        {streamMeta.warnings.map((w, idx) => (
+                          <li key={idx}>{w}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  <div className="rounded-xl border p-4">
+                    <div className="text-xs text-muted-foreground mb-2">Streaming output…</div>
+                    <pre className="text-xs whitespace-pre-wrap break-words">
+                      {streamText || "…"}
+                    </pre>
+                  </div>
+
                   <div className="h-4 w-2/3 rounded bg-muted" />
                   <div className="h-4 w-full rounded bg-muted" />
-                  <div className="h-4 w-5/6 rounded bg-muted" />
-                  <Separator className="my-4" />
-                  <div className="h-24 w-full rounded bg-muted" />
                 </div>
               )}
+
 
               {result && (
                 <div className="space-y-4">

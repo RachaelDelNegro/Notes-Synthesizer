@@ -177,3 +177,107 @@ synthesizeRouter.post("/", async (req, res) => {
     return res.json(result);
   }
 });
+
+// Streaming
+
+synthesizeRouter.post("/stream", async (req, res) => {
+  const parsed = reqSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+  }
+
+  const body = parsed.data as SynthesizeRequest;
+  const sourceType = body.source_type ?? "pasted";
+
+  const start = Date.now();
+  const run_id = makeId("run");
+  const created_at = new Date().toISOString();
+
+  const warnings: string[] = [];
+  const wordCount = body.source_text.trim().split(/\s+/).filter(Boolean).length;
+
+  if (wordCount < 20) warnings.push("Input is very short; extracted items may be incomplete.");
+  if (body.source_text.length > MAX_CHARS * 0.95) {
+    warnings.push(`Input is near the ${MAX_CHARS.toLocaleString()} character limit; results may miss later context.`);
+  }
+
+  // ---- SSE headers
+  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders?.();
+
+  const send = (event: string, data: any) => {
+    res.write(`event: ${event}\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  // Let the client know streaming started
+  send("meta", { run_id, created_at, warnings });
+
+  // Allow client to cancel by closing connection
+  let aborted = false;
+  req.on("close", () => {
+    aborted = true;
+  });
+
+  try {
+    const memory = getMemoryBlock({ limit: 3, maxChars: 2000, sourceType });
+
+    // For now, until we wire Gemini streaming:
+    // simulate a few deltas so you can verify SSE works end-to-end
+    send("delta", { text: "Synthesizing summary...\n" });
+    await new Promise(r => setTimeout(r, 300));
+    send("delta", { text: "Extracting action items...\n" });
+    await new Promise(r => setTimeout(r, 300));
+    send("delta", { text: "Finalizing...\n" });
+
+    // Then do your normal synthesize (non-stream) and send final:
+    const out = await llm.synthesize({ source_text: body.source_text, memory });
+
+    const items: SynthItem[] = (out.items ?? []).map((it) => ({
+      item_id: makeId("item"),
+      type: it.type,
+      description: it.description,
+      owner: it.owner ?? null,
+      due_date: it.due_date ?? null,
+      priority: it.priority ?? null,
+      source_text: it.source_text ?? null,
+      confidence: it.confidence ?? null,
+    }));
+
+    const warnings: string[] = [];
+    const result: SynthesizeResponse = {
+      summary: out.summary ?? "",
+      items,
+      metadata: {
+        run_id,
+        created_at,
+        model: out.model,
+        prompt_version: process.env.PROMPT_VERSION ?? "v0.3",
+        duration_ms: Date.now() - start,
+        source_type: sourceType,
+        source_length: body.source_text.length,
+        warnings,
+      },
+    };
+
+    // Persist
+    try {
+      persistSynthesis({ source_text: body.source_text, source_type: sourceType, result });
+    } catch (e) {
+      console.error("Failed to persist synthesis:", e);
+    }
+
+    send("final", result);
+    res.end();
+  } catch (e: any) {
+    console.error("[stream] error:", e);
+    send("error", { message: e?.message ?? String(e) });
+    res.end();
+    }
+  }
+);
+
