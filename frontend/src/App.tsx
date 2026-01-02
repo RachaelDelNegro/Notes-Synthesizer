@@ -1,7 +1,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 
-import type { SynthesizeResponse, SynthItem } from "@shared/types";
+import type { SynthesizeResponse} from "@shared/types";
 import type { RunDetailResponse, RunsListResponse } from "@shared/api";
 
 
@@ -10,7 +10,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -55,56 +54,56 @@ type SynthesisVM = {
 };
 
 // -------------------- Mock synthesis (replace with fetch later) --------------------
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
+// function sleep(ms: number) {
+//   return new Promise((r) => setTimeout(r, ms));
+// }
 
-async function mockSynthesize(notes: string): Promise<SynthesisVM> {
-  await sleep(700);
+// async function mockSynthesize(notes: string): Promise<SynthesisVM> {
+//   await sleep(700);
 
-  const mentionsDb = /db|database|sqlite|postgres/i.test(notes);
+//   const mentionsDb = /db|database|sqlite|postgres/i.test(notes);
 
-  return {
-    summary:
-      "MVP flow confirmed: paste/upload notes → synthesize → review/edit → export. Focus on clarity and trust with editable structured outputs.",
-    actionItems: [
-      {
-        id: crypto.randomUUID(),
-        text: "Replace mock synthesis with POST /api/synthesize (Express backend)",
-        owner: "Rachael",
-        due: "This week",
-        priority: "high",
-        done: false,
-      },
-      {
-        id: crypto.randomUUID(),
-        text: "Add empty states + error states for each tab",
-        owner: "Rachael",
-        due: "Next",
-        priority: "medium",
-        done: false,
-      },
-      {
-        id: crypto.randomUUID(),
-        text: mentionsDb ? "Decide whether to persist runs in DB for MVP" : "Define export formats (Markdown first, then JSON)",
-        owner: "Team",
-        due: "",
-        priority: "low",
-        done: false,
-      },
-    ],
-    decisions: [
-      { id: crypto.randomUUID(), text: "Use shadcn/ui (Radix + Tailwind) as the component library." },
-      { id: crypto.randomUUID(), text: "Ship a vertical slice UI before backend integration." },
-    ],
-    questions: [
-      { id: crypto.randomUUID(), text: "What’s the minimum structure needed for MVP outputs?", status: "open" },
-      { id: crypto.randomUUID(), text: "Do we store runs (history) or keep it stateless at first?", status: "open" },
-    ],
-    warnings: [],
-    runId: undefined,
-  };
-}
+//   return {
+//     summary:
+//       "MVP flow confirmed: paste/upload notes → synthesize → review/edit → export. Focus on clarity and trust with editable structured outputs.",
+//     actionItems: [
+//       {
+//         id: crypto.randomUUID(),
+//         text: "Replace mock synthesis with POST /api/synthesize (Express backend)",
+//         owner: "Rachael",
+//         due: "This week",
+//         priority: "high",
+//         done: false,
+//       },
+//       {
+//         id: crypto.randomUUID(),
+//         text: "Add empty states + error states for each tab",
+//         owner: "Rachael",
+//         due: "Next",
+//         priority: "medium",
+//         done: false,
+//       },
+//       {
+//         id: crypto.randomUUID(),
+//         text: mentionsDb ? "Decide whether to persist runs in DB for MVP" : "Define export formats (Markdown first, then JSON)",
+//         owner: "Team",
+//         due: "",
+//         priority: "low",
+//         done: false,
+//       },
+//     ],
+//     decisions: [
+//       { id: crypto.randomUUID(), text: "Use shadcn/ui (Radix + Tailwind) as the component library." },
+//       { id: crypto.randomUUID(), text: "Ship a vertical slice UI before backend integration." },
+//     ],
+//     questions: [
+//       { id: crypto.randomUUID(), text: "What’s the minimum structure needed for MVP outputs?", status: "open" },
+//       { id: crypto.randomUUID(), text: "Do we store runs (history) or keep it stateless at first?", status: "open" },
+//     ],
+//     warnings: [],
+//     runId: undefined,
+//   };
+// }
 
 // -------------------- Export helpers --------------------
 function toMarkdown(vm: SynthesisVM) {
