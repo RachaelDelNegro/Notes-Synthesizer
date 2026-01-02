@@ -216,7 +216,7 @@ const EXAMPLES: Array<{ id: string; label: string; text: string }> = [
 
   Discussed progress on the Notes Synthesizer MVP.
   Rachael will finish integrating Gemini and deploy to staging by Friday.
-  Jude will review the backend schema and suggest improvements.
+  Joe will review the backend schema and suggest improvements.
   We agreed to use a shared response schema between frontend and backend.
   Open question: do we want to support streaming output in the first release or push it to v2?
   Next meeting scheduled for Jan 5.`,
@@ -228,7 +228,7 @@ const EXAMPLES: Array<{ id: string; label: string; text: string }> = [
 
   Gemini hooked up now 🎉
   Need to double check JSON validity stuff
-  Jude: take a look at DB + memory idea
+  Joe: take a look at DB + memory idea
   Rachael – docs + maybe streaming later?
   Decision was we keep frontend simple for now
   ?? exporting markdown vs json – who cares first`,
