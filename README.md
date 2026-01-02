@@ -28,3 +28,9 @@ npm run dev
 cd frontend
 npm install
 npm run dev
+
+## Known Issues
+
+- Model assumption leak
+  - "Due Date" in `Actions` may give inaccurate dates if notes are unclear
+  - Model does not know today's data unless provided in the notes
