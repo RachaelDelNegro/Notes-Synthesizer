@@ -272,71 +272,81 @@ export default function App() {
     setResult(null);
     setStreamText("");
     setStreamMeta(null);
+    
 
     const controller = new AbortController();
 
     try {
-      const resp = await fetch("/api/synthesize", { // General fetch
+      const resp = await fetch("/api/synthesize/stream", { // General fetch
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source_text: notes, source_type: "pasted" }),
         signal: controller.signal,
       });
 
-      if (!resp.ok) {
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    const ct = resp.headers.get("content-type") || "";
+    if (!ct.includes("text/event-stream")) {
       const text = await resp.text();
-      throw new Error(text || `HTTP ${resp.status}`);
+      throw new Error(`Not SSE. content-type=${ct}. body=${text.slice(0, 200)}`);
+    }
+
+    const reader = resp.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    const handleEvent = (eventName: string, dataStr: string) => {
+      const data = JSON.parse(dataStr);
+
+      if (eventName === "meta") {
+        setStreamMeta({ run_id: data.run_id, warnings: data.warnings ?? [] });
+        return;
       }
 
-      if (!resp.body) throw new Error("No response body (stream unavailable)");
-
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-
-      let buf = "";
-      let finalPayload: SynthesizeResponse | null = null;
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        buf += decoder.decode(value, { stream: true });
-
-        const parsed = parseSseLines(buf);
-        buf = parsed.rest;
-
-        for (const msg of parsed.messages) {
-          if (msg.event === "meta") {
-            setStreamMeta(msg.data);
-            if (Array.isArray(msg.data?.warnings) && msg.data.warnings.length) {
-              // optional: show warnings early
-            }
-          } else if (msg.event === "delta") {
-            const t = String(msg.data?.text ?? "");
-            if (t) setStreamText((prev) => prev + t);
-          } else if (msg.event === "final") {
-            finalPayload = msg.data as SynthesizeResponse;
-          } else if (msg.event === "error") {
-            throw new Error(msg.data?.message ?? "Stream error");
-          }
-        }
+      if (eventName === "delta") {
+        setStreamText((prev) => prev + (data.text ?? ""));
+        return;
       }
 
-      if (!finalPayload) {
-        throw new Error("Stream ended without a final payload.");
+      if (eventName === "final") {
+        const apiResult = data as SynthesizeResponse;
+        const vm = mapApiToVm(apiResult);
+        setResult(vm);
+        setActiveTab("summary");
+        toast("Synthesis ready (saved to DB).");
+        setStreamText("");
+        setStreamMeta(null);
       }
 
-      const vm = mapApiToVm(finalPayload);
-      setResult(vm);
-      setActiveTab("summary");
-      toast("Synthesis ready (saved to DB).");
-    } catch (e) {
-      console.error("STREAM FETCH ERROR:", e);
-      toast.error("Streaming failed — see console.");
-    } finally {
-      setIsLoading(false);
+      if (eventName === "error") {
+        toast.error(data.message ?? "Streaming error");
+      }
+    };
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const parsed = parseSseLines(buffer);
+     buffer = parsed.rest;
+    for (const m of parsed.messages) {
+    // m.data is already parsed JSON (or string)
+    if (typeof m.data === "string") {
+      handleEvent(m.event, JSON.stringify({ text: m.data }));
+    } else {
+      handleEvent(m.event, JSON.stringify(m.data));
     }
   }
+    }
+  } catch (e) {
+    console.error("STREAM ERROR:", e);
+    toast.error("Streaming failed — see console.");
+  } finally {
+    setIsLoading(false);
+  }
+}
 
   function reset() {
     setResult(null);
@@ -460,7 +470,7 @@ export default function App() {
               )}
 
               {isLoading && (
-                <div className="space-y-3">s
+                <div className="space-y-3">
                   {streamMeta?.warnings?.length ? (
                     <div className="rounded-xl border p-3 text-sm">
                       <div className="font-medium mb-1">Warnings</div>
