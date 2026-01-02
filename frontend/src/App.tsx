@@ -218,6 +218,8 @@ const EXAMPLES: Array<{ id: string; label: string; text: string }> = [
   Rachael will finish integrating Gemini and deploy to staging by Friday.
   Joe will review the backend schema and suggest improvements.
   We agreed to use a shared response schema between frontend and backend.
+  Jane asked to update frontend UI.
+  Jane asks where does the "reset" button go? We will decide next meeting.
   Open question: do we want to support streaming output in the first release or push it to v2?
   Next meeting scheduled for Jan 5.`,
     },
