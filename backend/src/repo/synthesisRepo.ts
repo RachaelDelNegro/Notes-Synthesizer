@@ -1,4 +1,4 @@
-import { db } from "../db";
+import { db } from "../db.js";
 
 type ItemType = "action" | "decision" | "question";
 type Priority = "low" | "medium" | "high";
@@ -42,7 +42,7 @@ export function insertItems(
     )
   `);
 
-  const tx = db.transaction((rows) => {
+  const tx = db.transaction((rows:  any[]) => {
     for (const row of rows) stmt.run(row);
   });
 

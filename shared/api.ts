@@ -1,4 +1,4 @@
-import type { SynthesizeResponse } from "./types";
+import type { SynthesizeResponse } from "./types.js";
 
 // GET /api/runs
 export type RunsListItem = {

@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db } from "./db.js";
 import type { SynthesizeResponse, SynthItem } from "../../shared/types.js";
 
 const insertRun = db.prepare(`
