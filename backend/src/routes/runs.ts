@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../db.js";
-import type { SynthesizeResponse, SynthItem } from "../../../shared/types.js";
-import type { RunsListResponse, RunsListItem, RunDetailResponse } from "../../../shared/api.js";
+import type { SynthesizeResponse, SynthItem } from "../../../shared/dist/types.js";
+import type { RunsListResponse, RunsListItem, RunDetailResponse } from "../../../shared/dist/api.js";
 
 import { z } from "zod";
 
