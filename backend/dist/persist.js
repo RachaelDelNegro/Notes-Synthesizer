@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db } from "./db.js";
 const insertRun = db.prepare(`
   INSERT INTO synthesis_runs (
     run_id, source_text, source_type, created_at, prompt_version, model, summary, metadata_json
