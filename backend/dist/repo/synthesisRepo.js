@@ -1,4 +1,4 @@
-import { db } from "../db";
+import { db } from "../db.js";
 export function insertSynthesisRun(run) {
     db.prepare(`
     INSERT INTO synthesis_runs (

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import crypto from "crypto";
 import { persistSynthesis } from "../persist.js";
-import type { SynthesizeRequest, SynthesizeResponse, SynthItem } from "../../../shared/types.js";
+import type { SynthesizeRequest, SynthesizeResponse, SynthItem } from "../../../shared/dist/types.js";
 import { makeLlmClient } from "../llm/index.js";
 import { getMemoryBlock } from "../memory/getMemoryBlock.js";
 

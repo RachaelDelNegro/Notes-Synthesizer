@@ -1,5 +1,9 @@
 {
-  "name": "@shared",
+  "name": "@notes-synthesizer/shared",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "version": "0.0.0",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  }
 }
