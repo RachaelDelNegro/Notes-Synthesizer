@@ -25,7 +25,7 @@ https://github.com/user-attachments/assets/fba8eba7-aa81-48fa-8998-5950d14afad4
   - Decisions
   - Open Questions
 - Client-side editing before persistence
-- Export results as JSON, CSV, or Markdown
+- Export results as Markdown
 - Full traceability: each extracted item links back to source text
 - Run history with reloadable past syntheses (SQLite)
 - Streaming support (Server-Sent Events) for progressive synthesis
