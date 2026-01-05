@@ -111,15 +111,24 @@ synthesizeRouter.post("/", async (req, res) => {
   
 
 
-  try {
+   try {
     const llm = makeLlmClient();
 
+    const t0 = Date.now();
+
+    // memory timing
+    const tMem0 = Date.now();
     const memory = getMemoryBlock({
       limit: 3,
       maxChars: 2000,
       sourceType,
-});
+    });
+    const memory_ms = Date.now() - tMem0;
+
+    // llm timing
+    const tLlm0 = Date.now();
     const out = await llm.synthesize({ source_text: body.source_text, memory });
+    const llm_ms = Date.now() - tLlm0;
 
     const items: SynthItem[] = (out.items ?? []).map((it) => ({
       item_id: makeId("item"),
@@ -140,20 +149,43 @@ synthesizeRouter.post("/", async (req, res) => {
         created_at,
         model: out.model,
         prompt_version: process.env.PROMPT_VERSION ?? "v0.2",
-        duration_ms: Date.now() - start,
+        duration_ms: Date.now() - t0, // keep existing field
         source_type: sourceType,
         source_length: body.source_text.length,
         warnings,
       },
     };
 
-    // Persist the exact same IDs/result you return
+    // ---- add detailed timings into metadata_json (without changing shared types yet)
+    (result.metadata as any).timings_ms = {
+      total: Date.now() - t0,
+      llm: llm_ms,
+      memory: memory_ms,
+      db: 0, // fill after persist
+    };
+
+    // Persist + measure db timing
+    const tDb0 = Date.now();
     try {
       persistSynthesis({
         source_text: body.source_text,
         source_type: sourceType,
         result,
       });
+      const db_ms = Date.now() - tDb0;
+      (result.metadata as any).timings_ms.db = db_ms;
+
+      console.log("[metrics]", {
+        run_id,
+        total_ms: (result.metadata as any).timings_ms.total,
+        llm_ms,
+        memory_ms,
+        db_ms,
+        chars: body.source_text.length,
+        items: items.length,
+        model: out.model,
+      });
+
       console.log("[db] persisted run", result.metadata.run_id);
     } catch (e) {
       console.error("Failed to persist synthesis:", e);
