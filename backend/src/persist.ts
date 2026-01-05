@@ -39,6 +39,9 @@ export function persistSynthesis(args: {
       metadata_json,
     });
 
+    console.log("[persist] metadata_json has timings_ms?", metadata_json.includes("timings_ms"));
+
+
     for (const it of result.items) {
       // Normalize action-only fields to NULL when not action
       const owner = it.type === "action" ? it.owner ?? null : null;
