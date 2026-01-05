@@ -30,7 +30,9 @@ The backend owns synthesis logic, validation, and persistence. Its responsibilit
 - Receiving raw transcript text
 - Executing a multi-stage synthesis pipeline:
   - Preprocess → Extract → Parse → Validate → Normalize → Enrich
-- Interfacing with the LLM provider (Gemini)
+- Interfacing with the LLM via a provider-agnostic adapter layer
+  - Current provider: Google Gemini
+  - Interface designed to support future providers (e.g., Groq, Bedrock) without changes to routing or persistence
 - Hardening probabilistic output using deterministic schema validation
 - Streaming synthesis progress via Server-Sent Events (SSE)
 - Persisting completed synthesis runs to SQLite
@@ -45,6 +47,23 @@ This separation improves reliability, testability, and debuggability.
 
 ---
 
+#### LLM Integration Layer
+
+The backend integrates with large language models through a lightweight adapter interface (`makeLlmClient`), rather than calling a provider SDK directly from route handlers.
+
+**Design goals:**
+- Provider isolation (Gemini is swappable)
+- Consistent output shape across models
+- Centralized prompt and response handling
+- Simplified experimentation with alternative providers
+
+**Current implementation:**
+- Provider: Google Gemini
+- Model: `gemini-2.5-flash`
+- Synchronous generation with optional streaming support (SSE)
+
+---
+
 ### Architecture Flow Summary
 Non-Streaming
 `User → React UI → Express API → LLM → Validation → JSON → React UI`
@@ -55,6 +74,9 @@ User → React UI → Express API
                   ↳ stream: meta / delta / final
                   ↳ persist final result
 ``` 
+Streaming currently provides user-visible progress updates via SSE.
+While token-level model streaming is not yet enabled, this approach improves perceived responsiveness and trust, and is forward-compatible with true token streaming.
+
 
 ## Definitions
 
@@ -65,7 +87,6 @@ User → React UI → Express API
 | Method | Endpoint              | Description                                   |
 |------|-------------------------|-----------------------------------------------|
 | POST | `/api/synthesize`       | Takes raw notes and returns structured output |
-| POST | `/apy/synthesize/stream`| Streaming synthesis via SSE                   |
 | GET  | `/api/runs`             | List recent synthesis runs                    |
 | GET  | `/api/runs/run_id`      | Load a specific synthesis run                 |
 
@@ -104,7 +125,12 @@ Each synthesis is treated as a run with metadata, and extracted outputs are norm
     "duration_ms": 0,
     "source_type": "pasted | uploaded | example",
     "source_length": 0,
-    "warnings": ["string"]
+    "warnings": ["string"],
+    "timings_ms": {
+    "total": 3326,
+    "llm": 3121,
+    "memory": 2,
+    "db": 1
   }
 }
 ```
@@ -125,6 +151,11 @@ The final event payload matches the synchronous `/api/synthesize` response schem
 ---
 
 ## Persistence Layer
+Runs are immutable snapshots. Each synthesis invocation is stored as a complete artifact, enabling:
+- Reloading prior results
+- Comparing prompt versions
+- Performance analysis over time
+- Auditing model behavior
 
 ### Run Storage (MVP)
 
@@ -144,15 +175,21 @@ Runs can be reloaded via the **History UI** to support iteration and comparison.
 
 ### MVP Observability Signals
 The System Observer captures:
-- `runId`
-- Stage start/end times
+- `run_id`
 - Prompt version and model name
-- Counts
-  - Action Items
+- Input size (characters)
+- Output counts
+  - Action items
   - Decisions
   - Questions
-- Parse and validation errors (sanitized)
-- Export events
+- Latency metrics (milliseconds):
+  - Total end-to-end synthesis time
+  - LLM inference time
+  - Memory/context assembly time
+  - Persistence (DB write) time
+- Parse and validation warnings (sanitized)
+
+Latency metrics are persisted per run and used to evaluate system performance and UX expectations.
 
 ### Log Store (MVP)
 For the MVP:
