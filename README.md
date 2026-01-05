@@ -9,7 +9,13 @@ This project was built to explore **LLM-backed data pipelines**, system observab
 [Associated Maps](https://docs.google.com/spreadsheets/d/1vui22r4MFwIyGT7NRWnc56Q1NG9muh6NOQigZfNjEyw/edit?gid=0#gid=0)
 
 ## Demo
-To be added
+Short walkthrough demonstrating:
+- Raw notes input
+- Gemini-powered synthesis
+- Structured outputs (actions, decisions, questions)
+- Run history + reload
+
+https://github.com/user-attachments/assets/fba8eba7-aa81-48fa-8998-5950d14afad4
 
 ## Key Features
 - Paste or upload raw meeting notes or transcripts
