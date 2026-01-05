@@ -571,7 +571,7 @@ export default function App() {
         </div>
 
         <div className="text-xs text-muted-foreground">
-          Next: add memory-aware synthesis, streaming output, and stricter JSON validation.
+          Next: add Vercel and Render deployment.
         </div>
       </div>
     </div>
