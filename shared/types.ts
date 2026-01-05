@@ -29,6 +29,12 @@ export type SynthesisMetadata = {
   source_length?: number;
   // non-fatal issues during synthesis
   warnings?: string[];
+  timings_ms?: {
+  total: number;
+  llm: number;
+  db: number;
+  memory?: number;
+};
 };
 
 export type SynthesizeRequest = {

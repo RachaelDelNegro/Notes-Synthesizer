@@ -48,3 +48,11 @@ export function persistSynthesis(args) {
     });
     tx();
 }
+
+console.log("[metrics]", {
+  run_id,
+  items: result.items.length,
+  actions: result.items.filter(i => i.type === "action").length,
+  decisions: result.items.filter(i => i.type === "decision").length,
+  questions: result.items.filter(i => i.type === "question").length
+});

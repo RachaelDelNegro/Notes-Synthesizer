@@ -13,6 +13,9 @@ const reqSchema = z.object({
 function makeId(prefix) {
     return `${prefix}_${crypto.randomUUID()}`;
 }
+
+const llm = makeLlmClient();
+
 // Mock Synthesis
 function mockSynthesis(sourceText, sourceType) {
     const start = Date.now();
@@ -86,69 +89,97 @@ synthesizeRouter.post("/", async (req, res) => {
     if (body.source_text.length > MAX_CHARS * 0.95) {
         warnings.push(`Input is near the ${MAX_CHARS.toLocaleString()} character limit; results may miss later context.`);
     }
+
+    const t0 = Date.now();
+    let t_memory_ms = 0;
+    let t_llm_ms = 0;
+    let t_db_ms = 0;
+
     try {
-        const llm = makeLlmClient();
-        const memory = getMemoryBlock({
-            limit: 3,
-            maxChars: 2000,
-            sourceType,
-        });
-        const out = await llm.synthesize({ source_text: body.source_text, memory });
-        const items = (out.items ?? []).map((it) => ({
-            item_id: makeId("item"),
-            type: it.type,
-            description: it.description,
-            owner: it.owner ?? null,
-            due_date: it.due_date ?? null,
-            priority: it.priority ?? null,
-            source_text: it.source_text ?? null,
-            confidence: it.confidence ?? null,
-        }));
-        const result = {
-            summary: out.summary ?? "",
-            items,
-            metadata: {
-                run_id,
-                created_at,
-                model: out.model,
-                prompt_version: process.env.PROMPT_VERSION ?? "v0.2",
-                duration_ms: Date.now() - start,
-                source_type: sourceType,
-                source_length: body.source_text.length,
-                warnings,
-            },
-        };
+    // Memory block timing
+    const m0 = Date.now();
+    const memory = getMemoryBlock({ limit: 3, maxChars: 2000, sourceType });
+    t_memory_ms = Date.now() - m0;
+
+    // LLM timing
+    const l0 = Date.now();
+    const out = await llm.synthesize({ source_text: body.source_text, memory });
+    t_llm_ms = Date.now() - l0;
+
+    const items: SynthItem[] = (out.items ?? []).map((it) => ({
+      item_id: makeId("item"),
+      type: it.type,
+      description: it.description,
+      owner: it.owner ?? null,
+      due_date: it.due_date ?? null,
+      priority: it.priority ?? null,
+      source_text: it.source_text ?? null,
+      confidence: it.confidence ?? null,
+    }));
+
+    const t_total_ms = Date.now() - t0;
+
+    const result: SynthesizeResponse = {
+      summary: out.summary ?? "",
+      items,
+      metadata: {
+        run_id,
+        created_at,
+        model: out.model,
+        prompt_version: process.env.PROMPT_VERSION ?? "v0.2",
+        duration_ms: t_total_ms,
+        source_type: sourceType,
+        source_length: body.source_text.length,
+        warnings,
+        timings_ms: {
+          total: t_total_ms,
+          llm: t_llm_ms,
+          db: 0, // filled after persist
+          memory: t_memory_ms,
+        },
+      },
+    };
         // Persist the exact same IDs/result you return
-        try {
-            persistSynthesis({
-                source_text: body.source_text,
-                source_type: sourceType,
-                result,
-            });
-            console.log("[db] persisted run", result.metadata.run_id);
-        }
-        catch (e) {
-            console.error("Failed to persist synthesis:", e);
-        }
-        return res.json(result);
+        const d0 = Date.now();
+    try {
+      persistSynthesis({
+        source_text: body.source_text,
+        source_type: sourceType,
+        result,
+      });
+    } finally {
+      t_db_ms = Date.now() - d0;
+      // store db timing back into metadata (so it gets saved in metadata_json)
+      result.metadata.timings_ms = { ...result.metadata.timings_ms, db: t_db_ms };
     }
-    catch (e) {
-        console.error("LLM synthesize failed:", e);
-        // Fallback to mock so the app stays usable
-        const result = mockSynthesis(body.source_text, sourceType);
-        try {
-            persistSynthesis({
-                source_text: body.source_text,
-                source_type: sourceType,
-                result,
-            });
-            console.log("[db] persisted run (mock fallback)", result.metadata.run_id);
-        }
-        catch (e2) {
-            console.error("Failed to persist synthesis (mock fallback):", e2);
-        }
-        return res.json(result);
+
+    console.log("[metrics]", {
+      run_id,
+      chars: body.source_text.length,
+      items: items.length,
+      timings_ms: result.metadata.timings_ms,
+    });
+
+    return res.json(result);
+  } catch (e: any) {
+    console.error("LLM synthesize failed:", e);
+
+    // Fallback to mock so app remains usable
+    const result = mockSynthesis(body.source_text, sourceType);
+
+    try {
+      persistSynthesis({
+        source_text: body.source_text,
+        source_type: sourceType,
+        result,
+      });
+      console.log("[db] persisted run (mock fallback)", result.metadata.run_id);
+    } catch (e2) {
+      console.error("Failed to persist synthesis (mock fallback):", e2);
     }
+
+    return res.json(result);
+  }
 });
 // Streaming
 synthesizeRouter.post("/stream", async (req, res) => {
