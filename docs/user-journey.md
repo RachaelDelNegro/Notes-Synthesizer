@@ -64,7 +64,7 @@ Where applicable, users can view the source text from the original notes to unde
 #### Step 7: Taking Next Actions
 Once satisfied, the user can choose how to proceed. Options include:
 
-- Exporting synthesized notes in structured formats (JSON, CSV, or Markdown)
+- Exporting synthesized notes in structured formats (Markdown, for now)
 - Saving results to a document
 - Generating a new synthesis using revised notes
 
