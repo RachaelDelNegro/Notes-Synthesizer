@@ -62,6 +62,7 @@ Measured on real usage data (persisted runs):
 
 - **Average end-to-end latency:** ~3.3 seconds per synthesis
 - **Average structured outputs per run:** ~3.9 items
+- **Persistence latency:** ~1–2ms (SQLite)
 - **LLM time dominates latency** (~99%), with negligible database overhead
 - Metrics captured per run:
   - total latency
