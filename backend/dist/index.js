@@ -20,3 +20,8 @@ app.listen(port, "0.0.0.0", () => {
 });
 console.log("GEMINI_MODEL=", process.env.GEMINI_MODEL);
 console.log("GEMINI_API_KEY present=", Boolean(process.env.GEMINI_API_KEY));
+console.log("[boot] backend started", {
+    pid: process.pid,
+    port,
+    db: process.env.DB_PATH,
+});

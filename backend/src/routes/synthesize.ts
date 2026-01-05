@@ -94,38 +94,26 @@ synthesizeRouter.post("/", async (req, res) => {
   const body = parsed.data as SynthesizeRequest;
   const sourceType = body.source_type ?? "pasted";
 
-  const start = Date.now();
-  const run_id = makeId("run");
-  const created_at = new Date().toISOString();
-
   const warnings: string[] = [];
-  const wordCount = body.source_text.trim().split(/\s+/).length;
+  const wordCount = body.source_text.trim().split(/\s+/).filter(Boolean).length;
 
-  if (wordCount < 20) {
-    warnings.push("Input is very short; extracted items may be incomplete.");
-  }
+  if (wordCount < 20) warnings.push("Input is very short; extracted items may be incomplete.");
   if (body.source_text.length > MAX_CHARS * 0.95) {
     warnings.push(`Input is near the ${MAX_CHARS.toLocaleString()} character limit; results may miss later context.`);
   }
 
-  
+  const run_id = makeId("run");
+  const created_at = new Date().toISOString();
 
+  const tTotal0 = Date.now();
 
-   try {
+  try {
     const llm = makeLlmClient();
 
-    const t0 = Date.now();
-
-    // memory timing
     const tMem0 = Date.now();
-    const memory = getMemoryBlock({
-      limit: 3,
-      maxChars: 2000,
-      sourceType,
-    });
+    const memory = getMemoryBlock({ limit: 3, maxChars: 2000, sourceType });
     const memory_ms = Date.now() - tMem0;
 
-    // llm timing
     const tLlm0 = Date.now();
     const out = await llm.synthesize({ source_text: body.source_text, memory });
     const llm_ms = Date.now() - tLlm0;
@@ -141,6 +129,8 @@ synthesizeRouter.post("/", async (req, res) => {
       confidence: it.confidence ?? null,
     }));
 
+    const total_ms = Date.now() - tTotal0;
+
     const result: SynthesizeResponse = {
       summary: out.summary ?? "",
       items,
@@ -149,61 +139,46 @@ synthesizeRouter.post("/", async (req, res) => {
         created_at,
         model: out.model,
         prompt_version: process.env.PROMPT_VERSION ?? "v0.2",
-        duration_ms: Date.now() - t0, // keep existing field
+        duration_ms: total_ms,
         source_type: sourceType,
         source_length: body.source_text.length,
         warnings,
-      },
-    };
-
-    // ---- add detailed timings into metadata_json (without changing shared types yet)
-    (result.metadata as any).timings_ms = {
-      total: Date.now() - t0,
-      llm: llm_ms,
-      memory: memory_ms,
-      db: 0, // fill after persist
+        timings_ms: {
+          total: total_ms,
+          llm: llm_ms,
+          memory: memory_ms,
+          db: null, // will be filled after persist (response), DB needs update if you want it saved
+        },
+      } as any,
     };
 
     // Persist + measure db timing
     const tDb0 = Date.now();
-    try {
-      persistSynthesis({
-        source_text: body.source_text,
-        source_type: sourceType,
-        result,
-      });
-      const db_ms = Date.now() - tDb0;
-      (result.metadata as any).timings_ms.db = db_ms;
+    persistSynthesis({ source_text: body.source_text, source_type: sourceType, result });
+    const db_ms = Date.now() - tDb0;
 
-      console.log("[metrics]", {
-        run_id,
-        total_ms: (result.metadata as any).timings_ms.total,
-        llm_ms,
-        memory_ms,
-        db_ms,
-        chars: body.source_text.length,
-        items: items.length,
-        model: out.model,
-      });
+    // This updates the response (NOT the DB) unless you run UPDATE in persist layer
+    (result.metadata as any).timings_ms.db = db_ms;
 
-      console.log("[db] persisted run", result.metadata.run_id);
-    } catch (e) {
-      console.error("Failed to persist synthesis:", e);
-    }
+    console.log("[metrics]", {
+      run_id,
+      total_ms,
+      llm_ms,
+      memory_ms,
+      db_ms,
+      chars: body.source_text.length,
+      items: items.length,
+      model: out.model,
+    });
 
     return res.json(result);
   } catch (e) {
     console.error("LLM synthesize failed:", e);
 
-    // Fallback to mock so the app stays usable
     const result = mockSynthesis(body.source_text, sourceType);
 
     try {
-      persistSynthesis({
-        source_text: body.source_text,
-        source_type: sourceType,
-        result,
-      });
+      persistSynthesis({ source_text: body.source_text, source_type: sourceType, result });
       console.log("[db] persisted run (mock fallback)", result.metadata.run_id);
     } catch (e2) {
       console.error("Failed to persist synthesis (mock fallback):", e2);
